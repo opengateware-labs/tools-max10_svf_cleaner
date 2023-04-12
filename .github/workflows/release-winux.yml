@@ -1,0 +1,70 @@
+################################################################################
+# SPDX-License-Identifier: CC0-1.0
+# SPDX-FileType: OTHER
+# SPDX-FileCopyrightText: (c) 2022, OpenGateware authors and contributors
+################################################################################
+name: Release
+on:
+  push:
+    tags:
+      - "v*.*.*"
+################################################################################
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    container: raetro/gateman-builder:latest
+    steps:
+      - name: '🧰 Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: '🏗️ Build for Debian/Ubuntu'
+        run: |
+          cmake -G "Unix Makefiles" -B cmake-release-linux -DCMAKE_BUILD_TYPE=Release
+          cmake --build cmake-release-linux
+          cd cmake-release-linux && cpack
+
+      - name: '🚀 Create a new GitHub Release'
+        uses: softprops/action-gh-release@v0.1.14
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            cmake-release-linux/releases/*
+  ##############################################################################
+  build-mingw:
+    runs-on: ubuntu-latest
+    container: raetro/gateman-builder:latest
+    steps:
+      - name: '🧰 Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: '🏗️ Build for Windows using MinGW'
+        run: |
+          cmake -DCMAKE_TOOLCHAIN_FILE=./pkg/mingw-w64-x86_64.cmake -B cmake-release-mingw -DCMAKE_BUILD_TYPE=Release
+          cmake --build cmake-release-mingw
+          cd cmake-release-mingw && cpack
+
+      - name: '🚀 Create a new GitHub Release'
+        uses: softprops/action-gh-release@v0.1.14
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            cmake-release-mingw/releases/*
+  ##############################################################################
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: '🧰 Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: '🏗️ Build for macOS'
+        run: |
+          cmake -G "Unix Makefiles" -B cmake-release-macos -DCMAKE_BUILD_TYPE=Release
+          cmake --build cmake-release-macos
+          cd cmake-release-macos && cpack
+
+      - name: '🚀 Create a new GitHub Release'
+        if: contains(github.ref, 'tags/v')
+        uses: softprops/action-gh-release@v0.1.14
+        with:
+          files: |
+            cmake-release-macos/releases/*

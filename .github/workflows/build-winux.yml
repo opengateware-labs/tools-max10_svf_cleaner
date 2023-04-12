@@ -1,0 +1,75 @@
+################################################################################
+# SPDX-License-Identifier: CC0-1.0
+# SPDX-FileType: OTHER
+# SPDX-FileCopyrightText: (c) 2022, OpenGateware authors and contributors
+################################################################################
+name: Test Build
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - '**.json'
+################################################################################
+jobs:
+  ##############################################################################
+  build-linux:
+    runs-on: ubuntu-latest
+    container: raetro/gateman-builder:latest
+    steps:
+      - name: '🧰 Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: '🏗️ Build for Debian/Ubuntu'
+        run: |
+          cmake -G "Unix Makefiles" -B cmake-release-linux -DCMAKE_BUILD_TYPE=Debug
+          cmake --build cmake-release-linux
+          cd cmake-release-linux && cpack
+
+      - name: '🚀 Upload Artifacts'
+        uses: actions/upload-artifact@v3
+        with:
+          name: max10-svf-cleaner-linux
+          path: |
+            cmake-release-linux/releases/*
+          retention-days: 7
+  ###############################################################################
+  build-mingw:
+    runs-on: ubuntu-latest
+    container: raetro/gateman-builder:latest
+    steps:
+      - name: '🧰 Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: '🏗️ Build for Windows using MinGW'
+        run: |
+          cmake -DCMAKE_TOOLCHAIN_FILE=./pkg/mingw-w64-x86_64.cmake -B cmake-release-mingw -DCMAKE_BUILD_TYPE=Debug
+          cmake --build cmake-release-mingw
+          cd cmake-release-mingw && cpack
+
+      - name: '🚀 Upload Artifacts'
+        uses: actions/upload-artifact@v3
+        with:
+          name: max10-svf-cleaner-mingw
+          path: |
+            cmake-release-mingw/releases/*
+          retention-days: 7
+  ##############################################################################
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: '🧰 Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: '🏗️ Build for macOS'
+        run: |
+          cmake -G "Unix Makefiles" -B cmake-build-macos -DCMAKE_BUILD_TYPE=Debug
+          cmake --build cmake-build-macos
+          cd cmake-build-macos && cpack
+
+      - name: '🟦 Upload Artifacts'
+        uses: actions/upload-artifact@v3
+        with:
+          name: max10-svf-cleaner-macos
+          path: |
+            cmake-build-macos/releases/*
+          retention-days: 7
