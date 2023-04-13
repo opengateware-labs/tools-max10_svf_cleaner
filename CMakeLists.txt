@@ -6,7 +6,7 @@ endif ()
 
 # Project Information
 project(MAX10-SVF-Cleaner
-        VERSION "0.1.0"
+        VERSION "0.2.0"
         DESCRIPTION "MAX10 SVF Cleaner is a tool that solves a problem related to Intel® MAX® 10 devices."
         HOMEPAGE_URL "https://github.com/opengateware-labs/tools-max10_svf_cleaner"
         LANGUAGES CXX)
