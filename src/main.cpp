@@ -20,7 +20,30 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <utility>
 
+/**
+ * @brief Split a filename into its base name and extension.
+ * @param[in] filename The filename to split.
+ * @return A tuple containing the base name and extension of the filename.
+ */
+auto split_filename(const std::string &filename) -> std::pair<std::string, std::string> {
+    size_t const dot_pos = filename.find_last_of('.');
+    if (dot_pos == std::string::npos) {
+        // if the dot is not found, return the whole filename as the first element
+        return std::make_pair(filename, "");
+    } else {
+        // split the filename into two substrings based on the dot position
+        std::string const name = filename.substr(0, dot_pos);
+        std::string const ext = filename.substr(dot_pos + 1);
+        return std::make_pair(name, ext);
+    }
+}
+
+/**
+ * @brief Get the Current Date and Time
+ * @return a string in the following format: Tue Apr 12 23:36:31 2023.
+ */
 auto getCurrentDateTime() -> std::string {
     auto now = std::chrono::system_clock::now();
     std::time_t const time = std::chrono::system_clock::to_time_t(now);
@@ -32,35 +55,16 @@ auto getCurrentDateTime() -> std::string {
 }
 
 /**
- * Rewrite the Device line to remove the sof path
+ * @brief Rewrite the Device line to remove the sof path
  * @param[in/out] svf_data Serial Vector File as String
  */
-void extract_device_name(std::string &svf_data) {
+void clear_sof_path(std::string &svf_data) {
     std::regex const device_info_regex("(!Device #1:) (.*) - (.*)");
     std::smatch match;
 
     if (regex_search(svf_data, match, device_info_regex)) {
         std::string const device_info = match[1].str() + " " + match[2].str() + " - " + getCurrentDateTime();
         svf_data = regex_replace(svf_data, device_info_regex, device_info);
-    }
-}
-
-/**
- * @brief Remove the MAX 10 DSM Clear Commands
- * @param[in/out] svf_data Serial Vector File as String
- */
-void remove_dsm_clear(std::string &svf_data) {
-    // Define the string to search and replace
-    std::string const search_string = "!\n!Max 10 DSM Clear\n!\nSIR 10 TDI (203);\nRUNTEST 128 TCK;\nSDR 23 TDI (000000);\nSIR 10 TDI (3F2);\nRUNTEST 8750003 TCK;";
-    std::string const replace_string = "!\n!Max 10 DSM Clear (REMOVED)";
-
-    // Find the position of the search string in the input string
-    size_t pos = svf_data.find(search_string);
-
-    // Replace all occurrences of the search string with the replace string
-    while (pos != std::string::npos) {
-        svf_data.replace(pos, search_string.length(), replace_string);
-        pos = svf_data.find(search_string, pos + replace_string.length());
     }
 }
 
@@ -72,13 +76,14 @@ void remove_dsm_clear(std::string &svf_data) {
  */
 auto main(int num_args, char **args) -> int {
     // Check if the number of parameters are correct
-    if (num_args != 3) {
-        std::cerr << "Usage: " << args[0] << " <input.svf> <output.svf>" << std::endl;
+    if (num_args < 2) {
+        std::cerr << "Usage: " << args[0] << " input_filename [output_filename]" << std::endl;
         return EXIT_FAILURE;
     }
 
     // Open the input file for reading
-    std::ifstream infile(args[1], std::ios::binary);
+    std::string const input_filename = args[1];
+    std::ifstream infile(input_filename, std::ios::binary);
 
     // Check if the file was opened successfully
     if (!infile.is_open()) {
@@ -86,18 +91,44 @@ auto main(int num_args, char **args) -> int {
         return EXIT_FAILURE;
     }
 
-    // Read the contents of the file into a string
-    std::string svf_data((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+    // Read the input file line by line into a string
+    std::string svf_data;
+    std::string line;
+    bool skip_lines = false; // flag to skip lines
+    while (getline(infile, line)) {
+        // check if the current line matches the starting string
+        if (line == "!Max 10 DSM Clear") {
+            skip_lines = true; // set the flag to skip lines
+        }
+        // check if the current line matches the ending string
+        if (line == "!Max 10 Disable ISP") {
+            skip_lines = false; // unset the flag to stop skipping lines
+        }
+        // if the flag is set, skip the current line
+        if (skip_lines) {
+            continue;
+        }
+        svf_data += line + "\n";
+    }
 
     // Close the input file
     infile.close();
 
-    // Replace the specified string
-    remove_dsm_clear(svf_data);
-    extract_device_name(svf_data);
+    // Clear the .sof path reference
+    clear_sof_path(svf_data);
+
+    // Handle output filename
+    std::string output_filename;
+    if (num_args >= 3) {
+        output_filename = args[2];
+    } else {
+        // if the output filename is not provided, set it to input_filename_nodsm.ext
+        std::pair<std::string, std::string> const file_ext = split_filename(input_filename);
+        output_filename = file_ext.first + "_nodsm." + file_ext.second;
+    }
 
     // Open the output file for writing
-    std::ofstream outfile(args[2]);
+    std::ofstream outfile(output_filename);
 
     // Check if the output file was opened successfully
     if (!outfile.is_open()) {
